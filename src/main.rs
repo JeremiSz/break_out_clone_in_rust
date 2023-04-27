@@ -1,24 +1,32 @@
 use std::io;
 pub use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEvent},
     execute, queue, style,
     terminal::{self, ClearType},
     Command,
 };
 
-const COL:usize = 10;
-const ROW:usize = 10;
-const MAX :usize = COL * ROW;
+pub const COL:usize = 10;
+pub const ROW:usize = 10;
+pub const MAX :usize = COL * ROW;
+mod input;
 
 fn main() -> io::Result<()> {
-    //let mut board:[usize;MAX] = [0;MAX];
-    let mut visual:[char;MAX] = ['□';MAX];
+    let mut board:[usize;MAX] = [0;MAX];
+    let mut visual:[char;MAX] = [' ';MAX];
     
-    //let cursor = 44;
+    let mut cursor = 44;
     
-    let mut writer = set_up_terminal();    
-    draw(&mut writer,&visual)?;
+    let mut writer = set_up_terminal(); 
+    loop{   
+        cursor = input::input(cursor);
+        if cursor > MAX{
+            break ;
+        }
+        render(&board, &mut visual,cursor);
+        draw(&mut writer,&visual)?;
+    }
+    tear_down_terminal(&mut writer);
     io::Result::Ok(())
 }
 
@@ -29,9 +37,24 @@ fn set_up_terminal()-> io::Stdout
     terminal::enable_raw_mode().unwrap();
     writer
 }
-//fn input(){}
+fn tear_down_terminal(w : &mut io::Stdout){
+    execute!(w,terminal::LeaveAlternateScreen).unwrap();
+    terminal::disable_raw_mode().unwrap();
+}
+
+
 //fn update(){}
-//fn render(){}
+fn render(board:&[usize;MAX],visual:&mut[char;MAX],selected:usize){
+    for i in 0..MAX{
+        let index:usize = if i == selected {board[i] + 1} else {board[i]};
+        visual[i] = match index{
+            0 => '□',
+            1 => '■',
+            _ => ' ',
+        };
+    }
+}
+
 fn draw<W>(w:&mut W,visual:&[char;MAX]) -> io::Result<()>
 where W : io::Write
 {
