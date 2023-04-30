@@ -1,6 +1,7 @@
 use std::thread;
 use std::sync::mpsc;
 mod visuals;
+mod input;
 
 pub struct Vec2{
     x:i64,
@@ -10,8 +11,11 @@ pub struct Message{
     kind:MessageCodes,
     data:i64
 }
+#[derive(PartialEq,Copy,Clone)]
 pub enum MessageCodes {
-    Exit = 0
+    None,
+    Exit,
+    MovePaddle
 }
 
 pub const COL:usize = 11;
@@ -24,6 +28,10 @@ fn main() {
     let visual_handle = thread::spawn(move || {
         visuals::start(input_visual_reciever,visual_gameplay_sender,gameplay_visual_reciever)
     });
+    let input_handle = thread::spawn(move ||{
+        input::start(input_visual_sender);
+    });
 
-    
+    input_handle.join().unwrap();
+    visual_handle.join().unwrap();
 }
