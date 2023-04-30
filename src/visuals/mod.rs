@@ -1,36 +1,62 @@
-use std::io;
-use std::thread;
-
 use crossterm::{
     cursor,
     execute, queue, style,
     terminal
 };
+use std::sync::mpsc;
+use std::io;
+use super::Message;
 
-use super::GameState;
 const ICONS :[char;5] = ['□','■','=','@',' '];
-use std::sync::Arc;
 
-pub fn set_up_terminal(game_state:Arc<GameState>) -> thread::JoinHandle<()>
-{
-    let mut writer = io::stdout();
+pub struct GameState {
+    paddle_pos:usize,
+    paddle_size:usize,
+    block_poses:u128,
+    ball_pos_x:usize,
+    ball_pos_y:usize
+}
+
+pub fn start(
+    input_in:mpsc::Receiver<Message>,
+    gameplay_out:mpsc::Sender<Message>,
+    gameplay_in:mpsc::Receiver<Message>){
+        let mut game_state = GameState{
+            paddle_pos:6,
+            paddle_size:1,
+            block_poses:(super::MAX as u128),
+            ball_pos_x:6,
+            ball_pos_y:0
+        };
+        let mut writer = io::stdout();
+        let mut visual:[char;super::MAX + 2 * super::COL] = [' ';super::MAX + 2 * super::COL];
+        let mut game_ended:bool = false;
+        
+        set_up_terminal(writer);
+        loop{
+            if game_ended{
+                gameplay_out.send(Message{
+                    kind:MessageCodes::Exit,
+                    data:0
+                }).unwrap();
+                break;
+            }
+            render(game_state,visual);
+            draw(writer,visual).unwrap();
+        }
+        tear_down_terminal(writer);
+}
+
+fn set_up_terminal(writer:io::Stdout){
     execute!(writer, terminal::EnterAlternateScreen).unwrap();
     terminal::enable_raw_mode().unwrap();
-    thread::spawn(move || {rendering_loop(game_state,&mut writer)})
 }
-fn rendering_loop(game_state:Arc<GameState>,writer:&mut io::Stdout){
-    let mut visual:[char;super::MAX + 2 * super::COL] = [' ';super::MAX + 2 * super::COL];
-    loop{
-        if game_state.game_ended{
-            break;
-        }
-        render(&*game_state,&mut visual);
-        draw(writer,&visual).unwrap();
-    }
+fn tear_down_terminal(writer:io::Stdout){
     execute!(writer,terminal::LeaveAlternateScreen).unwrap();
     terminal::disable_raw_mode().unwrap();
 }
-pub fn render(board:&GameState,visual:&mut[char;super::MAX + 2 * super::COL]){
+
+fn render(board:&GameState,visual:&mut [char;super::MAX + 2 * super::COL]){
     for i in 0..super::MAX{
         if board.block_poses & (1<<i) != 0{
             visual[i] = ICONS[1];
@@ -47,7 +73,7 @@ pub fn render(board:&GameState,visual:&mut[char;super::MAX + 2 * super::COL]){
     }
 }
 
-pub fn draw<W>(w:&mut W,visual:&[char;super::MAX + 2 * super::COL]) -> io::Result<()>where W : io::Write
+fn draw<W>(w:&mut W,visual:&[char;super::MAX + 2 * super::COL]) -> io::Result<()>where W : io::Write
 {
     queue!(
         w,
