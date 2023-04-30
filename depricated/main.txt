@@ -8,30 +8,3 @@ pub struct GameState {
     ball_vel_y:i64,
     game_ended:bool
 }
-
-use std::sync::mpsc;
-fn main() {
-    let mut board:GameState = GameState{
-        paddle_pos:6,
-        paddle_size:1,
-        block_poses:(MAX as u128),
-        ball_pos_x:6,
-        ball_pos_y:0,
-        ball_vel_x:0,
-        ball_vel_y:1,
-        game_ended:false
-    };
-    let board_ref = Arc::new(Mutex::new(&mut board));
-    let rendering_thread_handler = visuals::set_up_terminal(board_ref.clone()); 
-    
-    loop{   
-        input::input(board_ref.clone());
-        if  board_ref.lock().unwrap().game_ended{
-            rendering_thread_handler.join().unwrap();
-            break ;
-        }
-    }
-}
-pub fn print_type_of<T>(_: &T) {
-    println!("{}", std::any::type_name::<T>())
-}
