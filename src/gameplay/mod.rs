@@ -44,17 +44,17 @@ fn handle_physics(game_state:&mut GameState,visual_out:&mpsc::Sender<Message>){
     let mut new_x = game_state.ball_pos_x + game_state.ball_vel_x;
     let mut  new_y = game_state.ball_pos_y + game_state.ball_vel_y;
 
-    let index = new_y * (super::COL as i64) + new_x;
-    if game_state.block_poses & (1 << index) != 0{
-        game_state.block_poses &= !(1 << index);
+    let index = (new_y * (super::COL as i64) + new_x) as i8;
+    let block_index = (1 as u64) << index;
+    if game_state.block_poses & block_index != 0{
+        game_state.block_poses &= !block_index;
         game_state.ball_vel_y *= -1;
-        let data = ((game_state.block_poses as i128) << 64) as i64;
+        let data = game_state.block_poses  as i64;
         visual_out.send(Message{
             kind:MessageCodes::BlockChanged,
             data:data
         }).unwrap();
     }
-
 
     if new_x < 0{
         new_x = 0;
@@ -77,4 +77,7 @@ fn handle_physics(game_state:&mut GameState,visual_out:&mpsc::Sender<Message>){
         kind:MessageCodes::BallMoved,
         data:new_y * super::COL + new_x
     }).unwrap();
+    game_state.ball_pos_x = new_x;
+    game_state.ball_pos_y = new_y;
+    println!("test {} {}",new_x,new_y);
 }

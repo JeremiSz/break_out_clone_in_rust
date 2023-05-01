@@ -28,21 +28,21 @@ pub fn start(
             paddle_pos:5,
             paddle_size:1,
             block_poses:super::MAX,
-            ball_index:6 + (super::COL as u64),
+            ball_index: super::MAX ,
             game_ended:false
         };
         let mut writer = io::stdout();
         let mut visual:[char;SCREEN_BUFFER_SIZE] = [' ';SCREEN_BUFFER_SIZE];
         
-        //set_up_terminal(&mut writer);
+        set_up_terminal(&mut writer);
         loop{
             handle_messages(&input_in,&gameplay_in,&gameplay_out,&mut game_state);
             if game_state.game_ended{break;}
 
             render(&game_state,&mut visual);
-            //draw(&mut writer,&visual).unwrap();
+            draw(&mut writer,&visual).unwrap();
         }
-        //tear_down_terminal(&mut writer);
+        tear_down_terminal(&mut writer);
 }
 fn handle_messages(
     input_in:&mpsc::Receiver<Message>,
@@ -63,28 +63,29 @@ fn handle_messages(
 fn handle_message(message:Message,gameplay_out:&mpsc::Sender<Message>,game_state:&mut GameState){
     match message.kind{
         MessageCodes::Exit => {exit(&gameplay_out,game_state)},
-        MessageCodes::MovePaddle => {move_paddle(message, gameplay_out, game_state)}
+        MessageCodes::MovePaddle => {move_paddle(message.data, gameplay_out, game_state)},
+        MessageCodes::BallMoved => {move_ball(message.data, game_state)},
         _ => {}
     };
 }
-fn move_paddle(message:Message,gameplay_out:&mpsc::Sender<Message>,game_state:&mut GameState){
+fn move_ball(message:i64,game_state:&mut GameState){
+    game_state.ball_index = message as u64;
+}
+fn move_paddle(message:i64,gameplay_out:&mpsc::Sender<Message>,game_state:&mut GameState){
     let new_pos = game_state.paddle_pos as i64;
-    let new_pos = new_pos + message.data;
+    let new_pos = new_pos + message;
     let new_pos = cmp::max(0,new_pos);
     game_state.paddle_pos = cmp::min(super::COL - game_state.paddle_size,new_pos);
-    let result = gameplay_out.send(Message{
+    let _result = gameplay_out.send(Message{
         kind:MessageCodes::BlockChanged,
         data:(game_state.paddle_pos-32) as i64
     });
-    if result.is_err(){
-        println!("{}",result.unwrap_err());
-    }
 }
 fn exit(gameplay_out:&mpsc::Sender<Message>,game_state:&mut GameState){
-    gameplay_out.send(Message{
+    let _result = gameplay_out.send(Message{
         kind:MessageCodes::Exit,
         data:0
-    }).unwrap();
+    });
     game_state.game_ended = true;
 }
 

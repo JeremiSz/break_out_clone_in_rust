@@ -1,5 +1,7 @@
 use std::thread;
 use std::sync::mpsc;
+
+
 mod visuals;
 mod input;
 mod gameplay;
@@ -34,7 +36,7 @@ fn main() {
         gameplay::start(visual_gameplay_reciever,gameplay_visual_sender)
     });
 
-    input_handle.join().unwrap();
-    visual_handle.join().unwrap();
-    gameplay_handle.join().unwrap();
+    let _result_input = input_handle.join();
+    let _result_visual = visual_handle.join();
+    let _result_gameplay = gameplay_handle.join();
 }
