@@ -10,13 +10,13 @@ use super::Message;
 use super::MessageCodes;
 
 const ICONS :[char;5] = ['□','■','=','@',' '];
+const SCREEN_BUFFER_SIZE:usize = (super::MAX + 2 * (super::COL as u64)) as usize;
 
 pub struct GameState {
-    paddle_pos:usize,
-    paddle_size:usize,
-    block_poses:u128,
-    ball_pos_x:usize,
-    ball_pos_y:usize,
+    paddle_pos:i64,
+    paddle_size:i64,
+    block_poses:u64,
+    ball_index:u64,
     game_ended:bool
 }
 
@@ -27,23 +27,22 @@ pub fn start(
         let mut game_state = GameState{
             paddle_pos:5,
             paddle_size:1,
-            block_poses:(super::MAX as u128),
-            ball_pos_x:6,
-            ball_pos_y:11,
+            block_poses:super::MAX,
+            ball_index:6 + (super::COL as u64),
             game_ended:false
         };
         let mut writer = io::stdout();
-        let mut visual:[char;super::MAX + 2 * super::COL] = [' ';super::MAX + 2 * super::COL];
+        let mut visual:[char;SCREEN_BUFFER_SIZE] = [' ';SCREEN_BUFFER_SIZE];
         
-        set_up_terminal(&mut writer);
+        //set_up_terminal(&mut writer);
         loop{
             handle_messages(&input_in,&gameplay_in,&gameplay_out,&mut game_state);
             if game_state.game_ended{break;}
 
             render(&game_state,&mut visual);
-            draw(&mut writer,&visual).unwrap();
+            //draw(&mut writer,&visual).unwrap();
         }
-        tear_down_terminal(&mut writer);
+        //tear_down_terminal(&mut writer);
 }
 fn handle_messages(
     input_in:&mpsc::Receiver<Message>,
@@ -69,10 +68,17 @@ fn handle_message(message:Message,gameplay_out:&mpsc::Sender<Message>,game_state
     };
 }
 fn move_paddle(message:Message,gameplay_out:&mpsc::Sender<Message>,game_state:&mut GameState){
-    let new_pos = game_state.paddle_pos as i64 + message.data;
-    let new_pos = cmp::max(0,new_pos) as usize;
+    let new_pos = game_state.paddle_pos as i64;
+    let new_pos = new_pos + message.data;
+    let new_pos = cmp::max(0,new_pos);
     game_state.paddle_pos = cmp::min(super::COL - game_state.paddle_size,new_pos);
-    gameplay_out.send(message).unwrap();
+    let result = gameplay_out.send(Message{
+        kind:MessageCodes::BlockChanged,
+        data:(game_state.paddle_pos-32) as i64
+    });
+    if result.is_err(){
+        println!("{}",result.unwrap_err());
+    }
 }
 fn exit(gameplay_out:&mpsc::Sender<Message>,game_state:&mut GameState){
     gameplay_out.send(Message{
@@ -91,8 +97,8 @@ fn tear_down_terminal(writer:&mut io::Stdout){
     terminal::disable_raw_mode().unwrap();
 }
 
-fn render(board:&GameState,visual:&mut [char;super::MAX + 2 * super::COL]){
-    for i in 0..super::MAX{
+fn render(board:&GameState,visual:&mut [char;SCREEN_BUFFER_SIZE]){
+    for i in 0..(super::MAX as usize){
         if board.block_poses & (1<<i) != 0{
             visual[i] = ICONS[1];
         }
@@ -100,14 +106,15 @@ fn render(board:&GameState,visual:&mut [char;super::MAX + 2 * super::COL]){
             visual[i] = ICONS[0];
         }
     }
-    visual[board.ball_pos_y * super::COL + board.ball_pos_x] = ICONS[3];
-    let bar_indeices = board.paddle_pos..board.paddle_size+board.paddle_pos;
-    for i in 0..super::COL{
-        visual[super::MAX + super::COL + i] = if bar_indeices.contains(&i) {ICONS[2]} else {ICONS[4]};
+    visual[board.ball_index as usize] = ICONS[3];
+    let bar_indeices = (board.paddle_pos as u64)..((board.paddle_size+board.paddle_pos) as u64);
+    for i in 0..(super::COL as u64){
+        let index = (super::MAX + i + (super::COL as u64)) as usize;
+        visual[index] = if bar_indeices.contains(&i) {ICONS[2]} else {ICONS[4]};
     }
 }
 
-fn draw<W>(w:&mut W,visual:&[char;super::MAX + 2 * super::COL]) -> io::Result<()>where W : io::Write
+fn draw<W>(w:&mut W,visual:&[char;SCREEN_BUFFER_SIZE]) -> io::Result<()>where W : io::Write
 {
     queue!(
         w,
@@ -117,7 +124,8 @@ fn draw<W>(w:&mut W,visual:&[char;super::MAX + 2 * super::COL]) -> io::Result<()
         cursor::MoveTo(0,0)
     )?;
     for i in 0..super::ROW + 2{
-        let line = &visual[i*super::COL..(i+1)*super::COL];
+        let (start,end) = ((i*super::COL) as usize,((i+1)*super::COL) as usize);
+        let line = &visual[start..end];
         let string :String = line.iter().cloned().collect();
         queue!(
             w,
