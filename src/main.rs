@@ -1,42 +1,47 @@
-use std::thread;
-use std::sync::mpsc;
-
-
-mod visuals;
-mod input;
-mod gameplay;
-
-pub struct Message{
-    kind:MessageCodes,
-    data:i64
-}
-#[derive(PartialEq,Copy,Clone)]
-pub enum MessageCodes {
+#[derive(PartialEq,Debug,Clone,Copy)]
+pub enum MessageCodes{
     None,
     Exit,
-    MovePaddle,
-    BlockChanged,
-    BallMoved
+    Up,
+    Down,
+    Left,
+    Right
+}
+impl MessageCodes{
+    fn set(&mut self,code:MessageCodes){
+        *self = code;
+    }
 }
 
-pub const COL:i64 = 8;
-pub const ROW:i64 = 8;
-pub const MAX :u64 = (COL as u64) * (ROW as u64);
-fn main() {
-    let (input_visual_sender, input_visual_reciever):(mpsc::Sender<Message>,mpsc::Receiver<Message>) = mpsc::channel();
-    let (visual_gameplay_sender, visual_gameplay_reciever):(mpsc::Sender<Message>,mpsc::Receiver<Message>)  = mpsc::channel();
-    let (gameplay_visual_sender, gameplay_visual_reciever):(mpsc::Sender<Message>,mpsc::Receiver<Message>)  = mpsc::channel();
-    let visual_handle = thread::spawn(move || {
-        visuals::start(input_visual_reciever,visual_gameplay_sender,gameplay_visual_reciever)
-    });
-    let input_handle = thread::spawn(move ||{
-        input::start(input_visual_sender);
-    });
-    let gameplay_handle = thread::spawn(move ||{
-        gameplay::start(visual_gameplay_reciever,gameplay_visual_sender)
-    });
+use std::sync::{Arc,Mutex};
+use std::thread;
+use std::env;
 
-    let _result_input = input_handle.join();
-    let _result_visual = visual_handle.join();
-    let _result_gameplay = gameplay_handle.join();
+mod input;
+mod gameplay;
+fn main(){
+    
+
+    let message_ref = Arc::new(Mutex::new(MessageCodes::None));
+    let input_handle;
+    {
+        let input_ref = message_ref.clone();
+        input_handle = thread::spawn(move || {input::start(input_ref)});
+    }
+    let (col,row) = parse_args(env::args().collect());
+    assert!((col * row) < (100*100 + 1));
+    gameplay::start(message_ref,col,row);
+    input_handle.join().unwrap();
+}
+
+fn parse_args(args:Vec<String>)->(usize,usize){
+    let col = match args[1].parse::<usize>() {
+        Ok(n) => {n},
+        Err(_) => {8}
+    };
+    let row = match args[2].parse::<usize>() {
+        Ok(n) => {n},
+        Err(_) => {8}
+    };
+    (col,row)
 }

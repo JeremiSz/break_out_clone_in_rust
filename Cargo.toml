@@ -1,5 +1,5 @@
 [package]
-name = "break_out_clone"
+name = "snake_clone"
 version = "0.1.0"
 edition = "2021"
 

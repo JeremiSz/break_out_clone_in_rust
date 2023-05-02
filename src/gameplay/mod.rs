@@ -1,83 +1,63 @@
-use std::sync::mpsc;
-use super::{Message,MessageCodes};
+use std::sync::{Arc,Mutex};
+use std::time::{SystemTime,UNIX_EPOCH};
+use super::MessageCodes;
 
-struct GameState {
-    paddle_pos:i64,
-    paddle_size:i64,
-    paddle_vel:i64,
-    block_poses:u64,
-    ball_pos_x:i64,
-    ball_pos_y:i64,
-    ball_vel_x:i64,
-    ball_vel_y:i64
-}
-
-pub fn start(visual_in:mpsc::Receiver<Message>,visual_out:mpsc::Sender<Message>){
-    let mut game_state = GameState{
-        paddle_pos:5,
-        paddle_size:2,
-        paddle_vel:0,
-        block_poses:super::MAX,
-        ball_pos_x:6,
-        ball_pos_y:11,
-        ball_vel_x:0,
-        ball_vel_y:1
-    };
+pub fn start(input : Arc<Mutex<MessageCodes>>,col:usize,row:usize){
+    let mut  snake_index:Vec<usize> = Vec::with_capacity(col * row);
+    snake_index.push(0);
+    let mut visual :[char;col*row]=[' ';col*row];
+    let mut pellet = (col*row)/2;
     loop{
-        let message = visual_in.try_recv();
-        if message.is_ok(){
-            let message = message.unwrap();
-            match message.kind{
-                MessageCodes::Exit => {break;},
-                MessageCodes::MovePaddle => {
-                    game_state.paddle_pos = message.data;
-                    game_state.paddle_vel = message.data;
-                }
-                _ => {}
-            }
+        let direction = get_input(&input);
+        if direction == MessageCodes::Exit{
+            break;
         }
-        handle_physics(&mut game_state,&visual_out);
+        if direction != MessageCodes::None{
+            move_snake(&snake_index,direction,col,row);
+        }
+        pellet = grow(&mut snake_index,pellet,col*row);
+        if detect_collision(&snake_index){
+            break;
+        }
         
     }
 }
-fn handle_physics(game_state:&mut GameState,visual_out:&mpsc::Sender<Message>){
-    let mut new_x = game_state.ball_pos_x + game_state.ball_vel_x;
-    let mut  new_y = game_state.ball_pos_y + game_state.ball_vel_y;
+fn get_input(input :&Arc<Mutex<MessageCodes>>)->MessageCodes{
+    *input.lock().unwrap()
+}
+fn move_snake(snake:&Vec<usize>,direction:MessageCodes,col:usize,size:usize){
+    let mut new_pos = match direction{
+        MessageCodes::Up => {snake[0] - col},
+        MessageCodes::Down => {snake[0] + col},
+        MessageCodes::Left => {snake[0] - 1},
+        MessageCodes::Right => {snake[0] + 1},
+        _ => {snake[0]}
+    };
+    let mut old_pos;
+    for i in 0..snake.len(){
+        old_pos = snake[i];
+        snake[i] = new_pos;
+        new_pos = old_pos;
+    };
+}
 
-    let index = (new_y * (super::COL as i64) + new_x) as i8;
-    let block_index = (1 as u64) << index;
-    if game_state.block_poses & block_index != 0{
-        game_state.block_poses &= !block_index;
-        game_state.ball_vel_y *= -1;
-        let data = game_state.block_poses  as i64;
-        visual_out.send(Message{
-            kind:MessageCodes::BlockChanged,
-            data:data
-        }).unwrap();
+fn detect_collision(snake:&Vec<usize>)->bool{
+    let target = snake[0];
+    let i = 1;
+    while i < snake.len() && snake[i] != target{
+        i += 1;
     }
-
-    if new_x < 0{
-        new_x = 0;
-        game_state.ball_vel_x = 1;
+    snake[i-1] == target
+}
+fn grow(snake:&mut Vec<usize>,pellet:usize,size:usize)->usize{
+    if snake[0] == pellet{
+        snake.push(0);
+        random()%size
     }
-    else if new_x >= super::COL{
-        new_x = super::COL - 1;
-        game_state.ball_vel_x = -1;
+    else{
+        pellet
     }
-
-    if new_y < 0{
-        new_y = 0;
-        game_state.ball_vel_y = 1;
-    }
-    else if new_y >= super::ROW{
-        new_y = super::ROW - 2;
-        game_state.ball_vel_y = -1;
-    }
-    visual_out.send(Message{
-        kind:MessageCodes::BallMoved,
-        data:new_y * super::COL + new_x
-    }).unwrap();
-    game_state.ball_pos_x = new_x;
-    game_state.ball_pos_y = new_y;
-    println!("test {} {}",new_x,new_y);
+}
+fn random()->usize{
+    SystemTime::now().duration_since(UNIX_EPOCH).expect("").as_secs() as usize
 }
