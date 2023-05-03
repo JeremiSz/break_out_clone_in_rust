@@ -1,9 +1,8 @@
 use std::sync::{Arc,Mutex};
 use super::MessageCodes;
-use crossterm::event::{self,Event,KeyEvent,KeyCode};
 
 pub fn start(input:Arc<Mutex<MessageCodes>>){
-    loop{
+   /* loop{
         let event = event::read().unwrap();
         let exit = match event{
             Event::Key(event) => 
@@ -33,5 +32,5 @@ fn handle_key(
     if value != MessageCodes::None{
         input.lock().unwrap().set(value);
     }  
-    value == MessageCodes::Exit 
+    value == MessageCodes::Exit */
 }

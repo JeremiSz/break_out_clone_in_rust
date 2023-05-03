@@ -1,53 +1,27 @@
-use crossterm::{
-    execute,
-    terminal,
-    queue,
-    style,
-    cursor
-};
-
 use std::io;
 
 const ICONS:[char;3] = [' ','■','@'];
+const IMAGE_SIZE:usize = super::SCREEN_BUFFER_SIZE + super::COL;
 
 pub fn init()->io::Stdout{
     let mut writer = io::stdout();
-    println!("made writer");
-    let result = execute!(writer, terminal::EnterAlternateScreen);
-    println!("{:?}",result);
-    println!("changed to alternate screen");
-    terminal::enable_raw_mode().unwrap();
-    println!("enabled raw mode");
+    //execute!(writer, terminal::EnterAlternateScreen).unwrap();
+    //terminal::enable_raw_mode().unwrap();
     writer   
 }
 
-pub fn draw<W>(w:&mut W,visual:[char;super::SCREEN_BUFFER_SIZE]) -> io::Result<()>where W : io::Write
+pub fn draw<W>(w:&mut W,visual:&[char;super::SCREEN_BUFFER_SIZE]) -> io::Result<()>where W : io::Write
 {
-    queue!(
-        w,
-        style::ResetColor,
-        terminal::Clear(terminal::ClearType::All),
-        cursor::Hide,
-        cursor::MoveTo(0,0)
-    )?;
+    let mut image:[u8;IMAGE_SIZE] = [0;IMAGE_SIZE];
     for i in 0..super::ROW{
-        let (start,end) = ((i*super::COL) as usize,((i+1)*super::COL) as usize);
-        let line = &visual[start..end];
-        let string :String = line.iter().cloned().collect();
-        println!("{}",string);
-        queue!(
-            w,
-            style::Print(string),
-            cursor::MoveToNextLine(1)
-        )?;
+        for j in 0..super::COL{
+            image[i*super::COL + j] = visual[i*super::COL + j] as u8;
+        }
+        image[i*super::ROW] = b'\n';
     }
+    w.write(&image)?;
     w.flush()?;
     io::Result::Ok(())
-}
-
-pub fn conclude(mut writer: io::Stdout){
-    execute!(writer,terminal::LeaveAlternateScreen).unwrap();
-    terminal::disable_raw_mode().unwrap(); 
 }
 
 pub fn fill(spot :usize,visual :&mut [char;super::SCREEN_BUFFER_SIZE]){

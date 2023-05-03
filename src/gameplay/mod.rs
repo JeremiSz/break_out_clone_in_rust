@@ -4,8 +4,8 @@ use super::MessageCodes;
 
 mod visual;
 
-const COL:usize = 100;
-const ROW:usize = 100;
+const COL:usize = 10;
+const ROW:usize = 10;
 const SCREEN_BUFFER_SIZE:usize = COL * ROW;
 
 pub fn start(input : Arc<Mutex<MessageCodes>>){
@@ -15,29 +15,20 @@ pub fn start(input : Arc<Mutex<MessageCodes>>){
     let mut visual_buffer:[char;SCREEN_BUFFER_SIZE] = [' ';SCREEN_BUFFER_SIZE];
     visual::pellet(pellet,&mut visual_buffer);
     let mut writer = visual::init();
-    println!("initalised visual");
     loop{
-        println!("entered loop");
         let direction = get_input(&input);
-        println!("got input");
         if direction == MessageCodes::Exit{
             break;
         }
-        println!("checked break");
         if direction != MessageCodes::None{
             move_snake(&mut snake_index,direction,&mut visual_buffer);
+            pellet = grow(&mut snake_index,pellet,&mut visual_buffer);
+            if detect_collision(&snake_index){
+                break;
+            }
         }
-        println!("moved");
-        pellet = grow(&mut snake_index,pellet,&mut visual_buffer);
-        println!("grew");
-        if detect_collision(&snake_index){
-            break;
-        }
-        println!("{:?} test",&visual_buffer);
-        visual::draw(&mut writer,visual_buffer).unwrap();
-        println!("drawn");
+        visual::draw(&mut writer,&visual_buffer).unwrap();
     }
-    visual::conclude(writer);
 }
 fn get_input(input :&Arc<Mutex<MessageCodes>>)->MessageCodes{
     *input.lock().unwrap()
